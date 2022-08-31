@@ -9,20 +9,20 @@ import (
 
 type StorageI interface {
 	BookRepo() repo.BooksRepoI
-	BookCategoriesRepo() repo.BookCategoriesRepoI
+	CategoriesRepo() repo.CategoriesRepoI
 }
 
 type storagePG struct {
-	db           *sqlx.DB
-	book         repo.BooksRepoI
-	bookCategory repo.BookCategoriesRepoI
+	db       *sqlx.DB
+	book     repo.BooksRepoI
+	category repo.CategoriesRepoI
 }
 
 func NewStoragePG(db *sqlx.DB) StorageI {
 	return storagePG{
-		db:           db,
-		book:         postgres.NewBookRepo(db),
-		bookCategory: postgres.NewBookCategoryRepo(db),
+		db:       db,
+		book:     postgres.NewBookRepo(db),
+		category: postgres.NewCategoryRepo(db),
 	}
 }
 
@@ -30,6 +30,6 @@ func (s storagePG) BookRepo() repo.BooksRepoI {
 	return s.book
 }
 
-func (s storagePG) BookCategoriesRepo() repo.BookCategoriesRepoI {
-	return s.bookCategory
+func (s storagePG) CategoriesRepo() repo.CategoriesRepoI {
+	return s.category
 }

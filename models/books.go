@@ -23,4 +23,6 @@ type Book struct {
 type BookList struct {
 	Books []Book `json:"books"`
 	Count int32  `json:"count"`
+	Limit int32  `json:"limit"`
+	Page  int32  `json:"page"`
 }

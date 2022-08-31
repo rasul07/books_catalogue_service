@@ -1,12 +1,14 @@
 package postgres
 
 import (
-	"book_catalog_service/models"
+	"book_catalog_service/genproto/book"
 	"book_catalog_service/storage/repo"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type bookService struct {
@@ -17,7 +19,7 @@ func NewBookRepo(db *sqlx.DB) repo.BooksRepoI {
 	return bookService{db: db}
 }
 
-func (c bookService) Create(req models.BookCreate) (err error) {
+func (c bookService) Create(req *book.BookCreate) (err error) {
 	query := `
 	INSERT INTO book(
 		guid,
@@ -65,26 +67,27 @@ func (c bookService) Create(req models.BookCreate) (err error) {
 	return
 }
 
-func (c bookService) GetBookList(limit, page int32) (resp []models.Book) {
+func (c bookService) GetBookList(req *book.GetAllBooksRequest) (resp *book.GetAllBooksResponse, err error) {
 	var (
-		offset = (page - 1) * limit
+		books    []*book.Book
+		offset   = (req.Page - 1) * req.Limit
+		category sql.NullString
 	)
 
 	query := `
-		SELECT
-			count(1) over(),
+		SELECT 
 			guid,
 			name,
 			author,
 			category_id,
 			description,
 			pages,
-			year
+			to_char(year, 'DD.MM.YYYY')
 		FROM book
-		limit $2 offset $3
+		limit $1 offset $2
 	`
 
-	rows, err := c.db.Query(query, limit, offset)
+	rows, err := c.db.Query(query, req.Limit, offset)
 	if err != nil {
 		return
 	}
@@ -92,29 +95,37 @@ func (c bookService) GetBookList(limit, page int32) (resp []models.Book) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var book models.Book
+		var book book.Book
 		err = rows.Scan(
-			&book.Count,
 			&book.ID,
 			&book.Name,
 			&book.Author,
-			&book.Category,
+			&category,
 			&book.Description,
 			&book.Pages,
 			&book.Year,
 		)
-
 		if err != nil {
 			return
 		}
 
-		resp = append(resp, book)
+		if category.Valid {
+			book.Category = category.String
+		}
+
+		books = append(books, &book)
 	}
 
-	return
+	return &book.GetAllBooksResponse{
+		BookList: books,
+	}, nil
 }
 
-func (c bookService) GetBookById(BookID string) (resp models.Book, err error) {
+func (c bookService) GetBookById(req *book.GetBookByIdRequest) (resp *book.GetBookByIdResponse, err error) {
+	var (
+		books book.Book
+	)
+
 	query := `
 		SELECT
 			guid,
@@ -123,31 +134,52 @@ func (c bookService) GetBookById(BookID string) (resp models.Book, err error) {
 			category_id,
 			description,
 			pages,
-			year
+			to_char(year, 'DD.MM.YYYY')
 		FROM book
 		WHERE guid=$1
 	`
 
-	err = c.db.QueryRow(query, BookID).Scan(
-		&resp.ID,
-		&resp.Name,
-		&resp.Author,
-		&resp.Category,
-		&resp.Description,
-		&resp.Pages,
-		&resp.Year,
+	err = c.db.QueryRow(query, req.BookId).Scan(
+		&books.ID,
+		&books.Name,
+		&books.Author,
+		&books.Category,
+		&books.Description,
+		&books.Pages,
+		&books.Year,
 	)
-
 	if err != nil {
-		return models.Book{}, err
+		return nil, err
 	}
 
-	return
+	return &book.GetBookByIdResponse{
+		Book: &books,
+	}, nil
 }
 
-func (c bookService) Update(req models.BookCreate) (err error) {
+func (c bookService) Update(req *book.Book) (resp *emptypb.Empty, err error) {
+	tx, err := c.db.Begin()
+
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		} else {
+			tx.Commit()
+		}
+	}()
+
 	query := `
-	UPDATE book SET name = $1, author = $2, category = $3, description = $4, pages = $5, year = $6`
+	UPDATE 
+		book 
+	SET 
+		name = $1, 
+		author = $2, 
+		category_id = $3, 
+		description = $4,
+		pages = $5,
+		year = $6
+	WHERE
+		guid = $7`
 
 	category, err := uuid.Parse(req.Category)
 	if err != nil {
@@ -157,7 +189,7 @@ func (c bookService) Update(req models.BookCreate) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = c.db.Exec(
+	_, err = tx.Exec(
 		query,
 		req.Name,
 		req.Author,
@@ -165,8 +197,22 @@ func (c bookService) Update(req models.BookCreate) (err error) {
 		req.Description,
 		req.Pages,
 		year,
+		req.ID,
 	)
+	if err != nil {
+		return
+	}
 
+	return
+}
+
+func (c bookService) Delete(req *book.Book) (err error) {
+	query := `
+	DELETE FROM 
+		book
+	WHERE guid = $1`
+
+	_, err = c.db.Exec(query, req.ID)
 	if err != nil {
 		return
 	}

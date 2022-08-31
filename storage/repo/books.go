@@ -1,12 +1,15 @@
 package repo
 
 import (
-	"book_catalog_service/models"
+	"book_catalog_service/genproto/book"
+
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type BooksRepoI interface {
-	Create(req models.BookCreate) (err error)
-	Update(req models.BookCreate) (err error)
-	GetBookList(limit, page int32) (resp []models.Book)
-	GetBookById(BookID string) (resp models.Book, err error)
+	Create(req *book.BookCreate) (err error)
+	Update(req *book.Book) (resp *emptypb.Empty, err error)
+	GetBookList(*book.GetAllBooksRequest) (resp *book.GetAllBooksResponse, err error)
+	GetBookById(*book.GetBookByIdRequest) (resp *book.GetBookByIdResponse, err error)
+	Delete(*book.Book) (err error)
 }

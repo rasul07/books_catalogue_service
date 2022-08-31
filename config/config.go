@@ -2,15 +2,18 @@ package config
 
 import (
 	"os"
+
 	"github.com/spf13/cast"
 )
 
 type Config struct {
+	Environment      string
 	PostgresHost     string
 	PostgresPort     int
 	PostgresUser     string
 	PostgresPassword string
 	PostgresDatabase string
+	RPCPort          string
 
 	LogLevel string
 	HttpPort string
@@ -18,12 +21,15 @@ type Config struct {
 
 func Load() Config {
 	config := Config{}
+	config.Environment = cast.ToString(getOrReturnDefault("ENVIRONMENT", "develop"))
 
 	config.PostgresHost = cast.ToString(getOrReturnDefault("POSTGRES_HOST", "localhost"))
 	config.PostgresPort = cast.ToInt(getOrReturnDefault("POSTGRES_PORT", 5432))
 	config.PostgresUser = cast.ToString(getOrReturnDefault("POSTGRES_USER", "postgres"))
 	config.PostgresPassword = cast.ToString(getOrReturnDefault("POSTGRES_PASSWORD", "mustang123"))
 	config.PostgresDatabase = cast.ToString(getOrReturnDefault("POSTGRES_DATABASE", "books_catalogue"))
+	config.RPCPort = cast.ToString(getOrReturnDefault("RPC_PORT", ":5004"))
+
 
 	config.HttpPort = cast.ToString(getOrReturnDefault("HTTP_PORT", ":8002"))
 
